@@ -946,29 +946,122 @@ async function initHandLandmarker() {
 /* -------------------------------------------------------------------------- */
 /* Camera                                                                     */
 /* -------------------------------------------------------------------------- */
+function releaseCameraTracks() {
+  if (state.stream) {
+    state.stream.getTracks().forEach((t) => {
+      try {
+        t.stop();
+      } catch (_) {
+        /* ignore */
+      }
+    });
+    state.stream = null;
+  }
+  if (el.webcam.srcObject) {
+    el.webcam.srcObject = null;
+  }
+}
+
+/** Progressive fallback — strict constraints often cause NotReadableError. */
+async function requestCameraStream() {
+  const attempts = [
+    {
+      video: {
+        facingMode: { ideal: "user" },
+        width: { ideal: CONFIG.perf.camWidth },
+        height: { ideal: CONFIG.perf.camHeight },
+        frameRate: { ideal: CONFIG.perf.camFps },
+      },
+      audio: false,
+    },
+    {
+      video: {
+        facingMode: { ideal: "user" },
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+      },
+      audio: false,
+    },
+    {
+      video: { facingMode: "user" },
+      audio: false,
+    },
+    { video: true, audio: false },
+  ];
+
+  let lastErr = null;
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      // Brief pause before retry helps when device was just released
+      if (i > 0) await new Promise((r) => setTimeout(r, 250));
+      return await navigator.mediaDevices.getUserMedia(attempts[i]);
+    } catch (err) {
+      lastErr = err;
+      console.warn(`getUserMedia attempt ${i + 1} failed`, err.name, err.message);
+    }
+  }
+  throw lastErr || new Error("カメラを開けませんでした");
+}
+
 async function startCamera() {
   el.cameraError.hidden = true;
   el.cameraError.textContent = "";
+
+  if (!window.isSecureContext) {
+    showCameraError(
+      "カメラは HTTPS（または localhost）でのみ使えます。公開ページの URL を開いてください。"
+    );
+    return;
+  }
 
   if (!navigator.mediaDevices?.getUserMedia) {
     showCameraError("このブラウザはカメラAPIに対応していません。");
     return;
   }
 
+  // Stop any prior session first (re-click / hot reload / other tab residue)
+  releaseCameraTracks();
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "user",
-        width: { ideal: CONFIG.perf.camWidth },
-        height: { ideal: CONFIG.perf.camHeight },
-        frameRate: { ideal: CONFIG.perf.camFps },
-      },
-      audio: false,
-    });
+    const stream = await requestCameraStream();
 
     state.stream = stream;
     el.webcam.srcObject = stream;
+    el.webcam.muted = true;
+    el.webcam.setAttribute("playsinline", "");
     await el.webcam.play();
+
+    // Prefer lower internal resolution for MediaPipe cost if browser gave higher
+    const track = stream.getVideoTracks()[0];
+    if (track?.getCapabilities) {
+      try {
+        const caps = track.getCapabilities();
+        const settings = {};
+        if (caps.width) {
+          settings.width = Math.min(
+            CONFIG.perf.camWidth,
+            caps.width.max || CONFIG.perf.camWidth
+          );
+        }
+        if (caps.height) {
+          settings.height = Math.min(
+            CONFIG.perf.camHeight,
+            caps.height.max || CONFIG.perf.camHeight
+          );
+        }
+        if (caps.frameRate) {
+          settings.frameRate = Math.min(
+            CONFIG.perf.camFps,
+            caps.frameRate.max || CONFIG.perf.camFps
+          );
+        }
+        if (Object.keys(settings).length) {
+          await track.applyConstraints(settings);
+        }
+      } catch (_) {
+        /* optional downscale — ignore */
+      }
+    }
 
     syncOverlaySize();
     state.cameraOn = true;
@@ -982,23 +1075,26 @@ async function startCamera() {
     }
   } catch (err) {
     console.error(err);
-    const msg =
-      err.name === "NotAllowedError"
-        ? "カメラ権限が拒否されました。ブラウザの設定で許可してください。"
-        : err.name === "NotFoundError"
-          ? "利用可能なカメラが見つかりません。"
-          : `カメラを起動できません: ${err.message || err.name}`;
+    releaseCameraTracks();
+    let msg = `カメラを起動できません: ${err.message || err.name}`;
+    if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+      msg =
+        "カメラ権限が拒否されました。アドレスバーのカメラ許可を「許可」にして再読み込みしてください。";
+    } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+      msg = "利用可能なカメラが見つかりません。接続を確認してください。";
+    } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+      msg =
+        "カメラを開始できません（ほかのアプリ・タブが使用中のことが多いです）。Zoom / Teams / ほかのブラウザタブを閉じてから、もう一度「カメラ ON」を押してください。";
+    } else if (err.name === "OverconstrainedError") {
+      msg = "この端末では指定のカメラ設定を使えません。もう一度お試しください。";
+    }
     showCameraError(msg);
     setStatus(msg);
   }
 }
 
 function stopCamera() {
-  if (state.stream) {
-    state.stream.getTracks().forEach((t) => t.stop());
-    state.stream = null;
-  }
-  el.webcam.srcObject = null;
+  releaseCameraTracks();
   state.cameraOn = false;
   state.smoothedLandmarks = null;
   state.handedness = null;
