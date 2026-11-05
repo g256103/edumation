@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gesture Street</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Exo+2:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="panorama" aria-label="360度パノラマビュー"></div>
+
+    <header class="hud-top">
+      <h1 class="brand">Gesture Street</h1>
+      <div id="modeBadge" class="mode-badge mode-idle" data-mode="idle">
+        <span class="mode-dot"></span>
+        <span id="modeLabel">待機中</span>
+      </div>
+    </header>
+
+    <div class="direction-indicator" aria-hidden="true">
+      <div id="dirForward" class="dir-arrow dir-forward">▲</div>
+      <div id="dirLeft" class="dir-arrow dir-left">◀</div>
+      <div id="dirCenter" class="dir-center"></div>
+      <div id="aimPip" class="aim-pip" hidden></div>
+      <div id="dirRight" class="dir-arrow dir-right">▶</div>
+      <div id="dirBack" class="dir-arrow dir-back">▼</div>
+    </div>
+
+    <div id="sceneToast" class="scene-toast" hidden></div>
+
+    <div id="calibPanel" class="calib-panel" hidden>
+      <div id="calibTitle" class="calib-title">手の検出を調整中</div>
+
+      <div class="calib-visual" aria-hidden="true">
+        <!-- 手のひら（進む） -->
+        <div id="diagramPalm" class="calib-diagram" hidden>
+          <svg viewBox="0 0 160 120" role="img" aria-label="開いた手の図">
+            <ellipse cx="80" cy="78" rx="30" ry="24" fill="#1a6b5a" stroke="#3dffb0" stroke-width="3"/>
+            <path d="M58 70 V38" stroke="#ff9b4a" stroke-width="7" stroke-linecap="round"/>
+            <path d="M70 66 V28" stroke="#ff9b4a" stroke-width="7" stroke-linecap="round"/>
+            <path d="M82 64 V24" stroke="#ff9b4a" stroke-width="7" stroke-linecap="round"/>
+            <path d="M94 66 V30" stroke="#ff9b4a" stroke-width="7" stroke-linecap="round"/>
+            <path d="M106 72 V42" stroke="#ff9b4a" stroke-width="7" stroke-linecap="round"/>
+            <circle cx="128" cy="48" r="14" fill="none" stroke="#e7f4f0" stroke-width="2" stroke-dasharray="3 3"/>
+            <text x="128" y="52" text-anchor="middle" fill="#e7f4f0" font-size="9">カメラ</text>
+            <text x="80" y="112" text-anchor="middle" fill="#9cb3ad" font-size="11" font-family="Exo 2, sans-serif">手のひらを見せる</text>
+          </svg>
+        </div>
+        <!-- 正面を指す図解 -->
+        <div id="diagramPoint" class="calib-diagram" hidden>
+          <svg viewBox="0 0 160 120" role="img" aria-label="正面を指す手の図">
+            <ellipse cx="70" cy="78" rx="28" ry="22" fill="#1a6b5a" stroke="#3dffb0" stroke-width="3"/>
+            <path d="M78 58 L78 22" stroke="#ff9b4a" stroke-width="10" stroke-linecap="round"/>
+            <circle cx="78" cy="18" r="6" fill="#fff"/>
+            <path d="M58 70c-6 0-12 6-8 12" fill="none" stroke="#3dffb0" stroke-width="3" stroke-linecap="round"/>
+            <path d="M62 62c-2-8 2-14 8-12" fill="#1a6b5a" stroke="#3dffb0" stroke-width="2"/>
+            <path d="M88 64c4-6 10-6 12 0" fill="none" stroke="#3dffb0" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="120" cy="40" r="14" fill="none" stroke="#e7f4f0" stroke-width="2" stroke-dasharray="3 3"/>
+            <text x="120" y="44" text-anchor="middle" fill="#e7f4f0" font-size="9">カメラ</text>
+            <text x="80" y="112" text-anchor="middle" fill="#9cb3ad" font-size="11" font-family="Exo 2, sans-serif">真正面を指す</text>
+          </svg>
+        </div>
+      </div>
+
+      <div id="calibNow" class="calib-now">今やること：手のひらをカメラに向ける</div>
+
+      <div class="calib-bar" aria-hidden="true">
+        <div id="calibFill" class="calib-fill"></div>
+      </div>
+      <div id="calibPercent" class="calib-percent">0%</div>
+      <div id="calibHint" class="calib-hint">カメラに手のひらを向け、少しの間まっすぐ構えてください</div>
+
+      <div class="howto-card" aria-label="操作の覚え方">
+        <div class="howto-label">操作の覚え方</div>
+        <div class="howto-row">
+          <span class="howto-icon howto-palm" aria-hidden="true">
+            <svg viewBox="0 0 32 32" width="22" height="22"><ellipse cx="14" cy="20" rx="8" ry="7" fill="#ff9b4a"/><path d="M8 18 V10 M12 16 V7 M16 15 V6 M20 16 V8 M24 19 V12" stroke="#ff9b4a" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </span>
+          <span><strong>手のひら</strong> → 進む（次の景色へ）</span>
+        </div>
+        <div class="howto-row">
+          <span class="howto-icon howto-point" aria-hidden="true">
+            <svg viewBox="0 0 32 32" width="22" height="22"><ellipse cx="12" cy="22" rx="7" ry="6" fill="#3dffb0"/><path d="M14 18 V6" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+          </span>
+          <span><strong>人差し指の向き</strong> → 視点移動</span>
+        </div>
+      </div>
+    </div>
+
+    <footer class="hud-bottom">
+      <div class="guide">
+        <div class="guide-item"><span class="guide-icon palm"></span>手のひら → 進む</div>
+        <div class="guide-item"><span class="guide-icon open"></span>人差し指の向き → 視点</div>
+        <div class="guide-item"><span class="guide-icon idle"></span>未検出 → 視点固定</div>
+      </div>
+      <div id="statusText" class="status-text">カメラを起動してください</div>
+    </footer>
+
+    <aside class="camera-panel">
+      <div class="camera-frame">
+        <video id="webcam" playsinline autoplay muted></video>
+        <canvas id="overlay"></canvas>
+        <div id="cameraError" class="camera-error" hidden></div>
+      </div>
+      <div class="camera-controls">
+        <button id="cameraToggle" type="button" class="cam-btn">カメラ ON</button>
+        <span id="handMeta" class="hand-meta">手: —</span>
+      </div>
+      <pre id="debugPanel" class="debug-panel">debug: —</pre>
+    </aside>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
